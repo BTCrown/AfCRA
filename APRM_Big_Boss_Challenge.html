@@ -7,6 +7,97 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, limit, doc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+        // Global variables provided by environment
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "",
+            authDomain: "",
+            projectId: "",
+            storageBucket: "",
+            messagingSenderId: "",
+            appId: ""
+        };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'aprm-boss-challenge';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Global references for the app logic
+        window.db = db;
+        window.appId = appId;
+
+        // Authentication logic (Rule 3)
+        const initAuth = async () => {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth error:", error);
+            }
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                window.currentUser = user;
+                setupLeaderboardListener();
+            }
+        });
+
+        initAuth();
+
+        // Real-time Global Leaderboard Listener
+        function setupLeaderboardListener() {
+            if (!window.db || !window.currentUser) return;
+            
+            // Path: /artifacts/{appId}/public/data/leaderboard (Rule 1)
+            const leaderboardRef = collection(window.db, 'artifacts', window.appId, 'public', 'data', 'leaderboard');
+            
+            // Simple query to avoid index requirements (Rule 2)
+            onSnapshot(leaderboardRef, (snapshot) => {
+                let scores = [];
+                snapshot.forEach(doc => {
+                    scores.push(doc.data());
+                });
+                
+                // Sort in memory (Rule 2)
+                scores.sort((a, b) => b.score - a.score);
+                const topScores = scores.slice(0, 10);
+                
+                updateLeaderboardUI(topScores);
+            }, (error) => {
+                console.error("Firestore listener error:", error);
+            });
+        }
+
+        window.saveScoreToCloud = async (name, score, grade) => {
+            if (!window.currentUser) return;
+            try {
+                const leaderboardRef = collection(window.db, 'artifacts', window.appId, 'public', 'data', 'leaderboard');
+                await addDoc(leaderboardRef, {
+                    name: name,
+                    score: score,
+                    grade: grade,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error("Error saving score:", error);
+            }
+        };
+
+    </script>
+
     <style>
         :root {
             --aprm-gold: #FFD700;
@@ -74,10 +165,10 @@
         <!-- LEADERBOARD SIDE PANEL -->
         <aside class="sidebar w-full lg:w-80 p-6 flex flex-col shadow-inner">
             <h2 class="text-xl font-black text-gray-800 mb-4 flex items-center gap-2">
-                <i class="fas fa-crown text-yellow-500"></i> THE HALL OF FAME
+                <i class="fas fa-crown text-yellow-500"></i> GLOBAL HALL OF FAME
             </h2>
             <div id="leaderboard-list" class="space-y-2 overflow-y-auto max-h-[400px]">
-                <p class="text-gray-400 text-sm italic">Checking who actually knows how to run things...</p>
+                <p class="text-gray-400 text-sm italic">Connecting to AfCRA Servers...</p>
             </div>
             <div class="mt-auto pt-6 border-t mt-6">
                 <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
@@ -121,7 +212,7 @@
                         Let's Get This Bag
                     </button>
                 </div>
-                <p class="text-[10px] text-gray-400 font-bold uppercase">Challenge the current leaders if you dare 👆</p>
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Beat the leaders on the left! 👆</p>
             </div>
 
             <!-- QUIZ SCREEN -->
@@ -264,22 +355,22 @@
             ]}
         ];
 
-        // Seed more varied questions to reach the 100 mark
+        // Varied generators to reach 100 questions
         const generators = [
-            { a: "Economic", q: "The Central Bank wants to raise interest rates to curb inflation. Do you protect their independence to do so, or suggest they hold rates to keep consumer spending high?", g: "Back the Central Bank's move to hike rates.", b: "Coordinate with the bank to keep rates artificially low.", i: "Bank independence is a massive credit signal. Interference usually leads to currency collapse and hyperinflation." },
-            { a: "Audit", q: "Procurement records for the new rail project are messy. Do you transition to a public blockchain-based portal for all government tenders, or hire a 3rd party manual auditing firm?", g: "Implement the public blockchain procurement system.", b: "Hire a global 3rd party auditing firm to review paper records.", i: "Tech-driven transparency is harder to bribe than a committee. Markets prefer immutable, verifiable data." },
-            { a: "Democracy", q: "The judiciary is underfunded and backlogged. Do you approve their requested budget increase via a new luxury tax, or allocate those funds to a new military security initiative to fight border crime?", g: "Approve the judicial budget increase via the luxury tax.", b: "Prioritize the re-allocation to national security hardware.", i: "A functioning, well-funded judiciary is a primary pillar of creditworthiness. Investors need to know that contracts can actually be enforced." },
-            { a: "Growth", q: "A foreign tech giant wants to build a hub but requires a 15-year tax holiday. Do you sign the deal for the immediate jobs, or demand a sliding-scale tax that funds local STEM education?", g: "Demand the sliding-scale tax to fund domestic STEM education.", b: "Sign the 15-year tax holiday to secure the FDI 'win'.", i: "Short-term FDI 'wins' that erode the tax base can lead to fiscal deficits. AfCRA looks for deals that build long-term domestic human capital." }
+            { a: "Economic", q: "The Central Bank wants to raise interest rates to curb inflation. Do you protect their independence to do so, or suggest they hold rates to keep consumer spending high?", g: "Back the Central Bank's move to hike rates.", b: "Coordinate with the bank to keep rates artificially low.", i: "Bank independence is a massive credit signal. Interference usually leads to currency collapse." },
+            { a: "Audit", q: "Procurement records for the new rail project are messy. Do you transition to a public blockchain-based portal for all government tenders, or hire a 3rd party manual auditing firm?", g: "Implement the public blockchain procurement system.", b: "Hire a global 3rd party auditing firm to review paper records.", i: "Tech-driven transparency is harder to bribe than a committee. Markets prefer verifiable data." },
+            { a: "Democracy", q: "Judicial staff are threatening a strike over funding. Do you approve their requested budget increase via a new luxury tax, or allocate those funds to a new military security initiative to fight border crime?", g: "Approve the judicial budget increase via the luxury tax.", b: "Prioritize the re-allocation to national security hardware.", i: "A functioning judiciary is a primary pillar of creditworthiness. Investors need to know contracts can be enforced." },
+            { a: "Growth", q: "A foreign tech giant wants to build a hub but requires a 15-year tax holiday. Do you sign the deal for the immediate jobs, or demand a sliding-scale tax that funds local STEM education?", g: "Demand the sliding-scale tax to fund domestic STEM education.", b: "Sign the 15-year tax holiday to secure the FDI 'win'.", i: "Short-term FDI 'wins' that erode the tax base can lead to fiscal deficits. AfCRA looks for human capital investment." }
         ];
 
         for (let i = 1; i <= 95; i++) {
             const temp = generators[Math.floor(Math.random() * generators.length)];
             questionBank.push({
                 area: temp.a,
-                text: temp.q,
+                text: `Policy Dilemma #${i+100}: ${temp.q}`,
                 options: [
                     { text: temp.g, impact: 35 + (i % 15), insight: temp.i },
-                    { text: temp.b, impact: -25 - (i % 10), insight: "This path might provide short-term political relief, but it increases institutional decay. Rating agencies prioritize long-term predictability." }
+                    { text: temp.b, impact: -25 - (i % 10), insight: "This path might provide short-term political relief, but it increases institutional decay. Rating agencies prioritize predictability." }
                 ]
             });
         }
@@ -290,12 +381,8 @@
         let userName = "";
         let isSharing = false;
 
-        // TRACKING AVAILABLE QUESTIONS
-        let availableQuestionIndices = JSON.parse(localStorage.getItem('aprm_available_indices') || "[]");
-
-        window.onload = () => {
-            updateLeaderboardUI();
-        };
+        // TRACKING AVAILABLE QUESTIONS (Persistent across sessions)
+        let availableQuestionIndices = JSON.parse(localStorage.getItem('aprm_exhaustion_pool') || "[]");
 
         function showScreen(id) {
             ['welcome-screen', 'start-screen', 'quiz-screen', 'result-screen', 'share-screen'].forEach(s => document.getElementById(s).classList.add('hidden'));
@@ -308,21 +395,18 @@
             score = 500;
             currentIdx = 0;
 
-            // REFRESH POOL IF EMPTY OR NOT INITIALIZED
+            // Exhaustion logic
             if (availableQuestionIndices.length < 5) {
                 availableQuestionIndices = Array.from({length: questionBank.length}, (_, i) => i);
             }
 
-            // PICK 5 UNIQUE QUESTIONS
             currentSessionQuestions = [];
             for (let i = 0; i < 5; i++) {
                 const randPos = Math.floor(Math.random() * availableQuestionIndices.length);
                 const questionIdx = availableQuestionIndices.splice(randPos, 1)[0];
                 currentSessionQuestions.push(questionBank[questionIdx]);
             }
-
-            // SAVE REMAINING POOL
-            localStorage.setItem('aprm_available_indices', JSON.stringify(availableQuestionIndices));
+            localStorage.setItem('aprm_exhaustion_pool', JSON.stringify(availableQuestionIndices));
 
             updateScoreDisplay();
             loadQuestion();
@@ -396,7 +480,7 @@
             document.getElementById('score-bar').style.width = pct + "%";
         }
 
-        function finishGame() {
+        async function finishGame() {
             let grade = "C";
             let analysis = "";
             let brag = "";
@@ -422,14 +506,17 @@
             document.getElementById('final-score').innerText = score;
             document.getElementById('analysis-text').innerText = analysis;
             document.getElementById('brag-text').innerText = brag;
-            saveToLeaderboard(userName, score, grade);
+            
+            // SAVE TO GLOBAL CLOUD (Replaces localStorage save)
+            if (window.saveScoreToCloud) {
+                await window.saveScoreToCloud(userName, score, grade);
+            }
+            
             showScreen('result-screen');
         }
 
         function triggerConfetti() {
-            const count = 200;
-            const defaults = { origin: { y: 0.7 }, colors: ['#FFD700', '#006400', '#003366', '#FFFFFF'] };
-            confetti({ ...defaults, particleCount: 150, spread: 70 });
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.7 }, colors: ['#FFD700', '#006400', '#003366', '#FFFFFF'] });
         }
 
         function copyToClipboard() {
@@ -452,19 +539,9 @@
             }, 2000);
         }
 
-        function saveToLeaderboard(name, score, grade) {
-            let board = JSON.parse(localStorage.getItem('aprm_board_v300') || "[]");
-            board.push({ name, score, grade });
-            board.sort((a, b) => b.score - a.score);
-            board = board.slice(0, 10);
-            localStorage.setItem('aprm_board_v300', JSON.stringify(board));
-            updateLeaderboardUI();
-        }
-
-        function updateLeaderboardUI() {
+        window.updateLeaderboardUI = (board) => {
             const list = document.getElementById('leaderboard-list');
-            const board = JSON.parse(localStorage.getItem('aprm_board_v300') || "[]");
-            if (board.length === 0) {
+            if (!board || board.length === 0) {
                 list.innerHTML = '<p class="text-gray-400 text-sm italic">The Hall is empty. Who wants to be the first Boss?</p>';
                 return;
             }
@@ -477,16 +554,16 @@
                     <div class="text-right"><p class="font-black text-green-700">${entry.score}</p></div>
                 </div>
             `).join('');
-        }
+        };
 
         function generateFlyer() {
             const canvas = document.getElementById('flyer-canvas');
             const ctx = canvas.getContext('2d');
             const grade = document.getElementById('grade-display').innerText;
 
-            // GREEN GRADIENT BACKGROUND
+            // PREMIUM GREEN GRADIENT (NO BG IMAGE)
             const grad = ctx.createLinearGradient(0, 0, 1080, 1080);
-            grad.addColorStop(0, '#004d00'); // Deep green
+            grad.addColorStop(0, '#004d00'); 
             grad.addColorStop(1, '#002b00');
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, 1080, 1080);
@@ -496,9 +573,9 @@
             ctx.lineWidth = 40;
             ctx.strokeRect(40, 40, 1000, 1000);
 
-            // HEADER - OPTIMIZED SIZE
+            // HEADER - FIXED SIZE TO PREVENT OVERFLOW
             ctx.fillStyle = '#FFD700';
-            ctx.font = 'bold 60px Arial';
+            ctx.font = 'bold 58px Arial'; 
             ctx.textAlign = 'center';
             ctx.fillText('APRM BIG BOSS CHALLENGE', 540, 180);
 
@@ -527,11 +604,11 @@
             ctx.font = 'bold 60px Arial';
             ctx.fillText(`CREDIT SCORE: ${score}`, 540, 880);
 
-            // CALL TO ACTION
+            // CTA
             ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'italic 36px Arial';
+            ctx.font = 'italic 34px Arial';
             ctx.fillText('Can you run a sector or an entire country?', 540, 960);
-            ctx.font = 'bold 40px Arial';
+            ctx.font = 'bold 38px Arial';
             ctx.fillStyle = '#FFD700';
             ctx.fillText('PLAY TO FIND OUT: APRM-CHALLENGE.AFRICA', 540, 1020);
 
