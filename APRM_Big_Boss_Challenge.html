@@ -97,7 +97,8 @@
                 const leaderboardRef = collection(window.db, 'artifacts', window.appId, 'public', 'data', 'leaderboard');
                 await addDoc(leaderboardRef, { name, score, grade, timestamp: new Date().toISOString() });
                 const userRef = doc(window.db, 'artifacts', window.appId, 'users', window.currentUser.uid, 'stats', 'profile');
-                await updateDoc(userRef, { totalGamesFinished: increment(1) });
+                // Use setDoc with merge to ensure doc exists
+                await setDoc(userRef, { totalGamesFinished: increment(1) }, { merge: true });
             } catch (e) { console.error("Score save error", e); }
         };
     </script>
@@ -165,7 +166,7 @@
                 <p class="text-sm text-gray-600">Enter your handle. Your performance will be logged in our global hall of fame.</p>
                 <input type="text" id="user-name" placeholder="Enter Your Boss Handle" maxlength="15"
                        class="w-full p-4 border-2 border-gray-100 rounded-xl focus:border-green-600 outline-none text-center font-bold text-lg uppercase shadow-sm">
-                <button onclick="startGame()" class="w-full p-5 btn-gold rounded-xl shadow-lg text-lg uppercase tracking-widest active:scale-95 transition-all">
+                <button onclick="startGame()" class="w-full p-5 btn-gold rounded-xl shadow-lg text-lg uppercase tracking-widest hover:shadow-xl active:scale-95 transition-all">
                     Let's Get This Bag
                 </button>
             </div>
@@ -261,11 +262,9 @@
             ]}
         ];
 
-        // Seeding 98 more varied dilemmas
         const sectors = ["Mineral", "Justice", "Education", "Health", "Trade", "Energy", "Infrastructure", "Tech"];
         for (let i = 0; i < 98; i++) {
             const sector = sectors[i % sectors.length];
-            const isGoodFirst = Math.random() > 0.5;
             questionBank.push({
                 area: sector,
                 text: `Policy Crisis #${i+100}: The ${sector} department is facing a decision that will define its next decade. Do you implement a decentralized system that empowers local oversight, or maintain a centralized command structure for rapid national alignment?`,
@@ -287,7 +286,8 @@
                 const el = document.getElementById(s);
                 if (el) el.classList.add('hidden');
             });
-            document.getElementById(id).classList.remove('hidden');
+            const target = document.getElementById(id);
+            if (target) target.classList.remove('hidden');
         }
 
         function startGame() {
@@ -295,7 +295,7 @@
             score = 500;
             currentIdx = 0;
             
-            let pool = JSON.parse(localStorage.getItem('aprm_exhaustion_pool_v3') || "[]");
+            let pool = JSON.parse(localStorage.getItem('aprm_exhaustion_pool_v4') || "[]");
             if (pool.length < 5) pool = Array.from({length: questionBank.length}, (_, i) => i);
             
             currentSessionQuestions = [];
@@ -303,7 +303,7 @@
                 const randPos = Math.floor(Math.random() * pool.length);
                 currentSessionQuestions.push(questionBank[pool.splice(randPos, 1)[0]]);
             }
-            localStorage.setItem('aprm_exhaustion_pool_v3', JSON.stringify(pool));
+            localStorage.setItem('aprm_exhaustion_pool_v4', JSON.stringify(pool));
             
             updateScoreDisplay();
             loadQuestion();
@@ -327,7 +327,8 @@
                 b.onclick = () => handleAnswer(opt);
                 container.appendChild(b);
             });
-            document.getElementById('next-round-btn').innerHTML = currentIdx === 4 ? `GET THE VERDICT <i class="fas fa-gavel ml-2 text-yellow-500"></i>` : `Next Round <i class="fas fa-arrow-right ml-2"></i>`;
+            const nextBtn = document.getElementById('next-round-btn');
+            nextBtn.innerHTML = currentIdx === 4 ? `GET THE VERDICT <i class="fas fa-gavel ml-2 text-yellow-500"></i>` : `Next Round <i class="fas fa-arrow-right ml-2"></i>`;
         }
 
         function handleAnswer(option) {
@@ -378,8 +379,15 @@
             document.getElementById('final-score').innerText = score;
             document.getElementById('analysis-text').innerText = analysis;
             document.getElementById('brag-text').innerText = brag;
-            if (window.saveScoreToCloud) await window.saveScoreToCloud(userName, score, grade);
-            if (window.logUsageToCloud) window.logUsageToCloud({ action: "Game Finished", finalScore: score, grade: grade });
+            
+            // Safer cloud handling - prevents UI blockage on error
+            try {
+                if (window.saveScoreToCloud) await window.saveScoreToCloud(userName, score, grade);
+                if (window.logUsageToCloud) await window.logUsageToCloud({ action: "Game Finished", finalScore: score, grade: grade });
+            } catch (err) {
+                console.warn("Cloud persistence failed but game proceeds.", err);
+            }
+            
             showScreen('result-screen');
         }
 
@@ -400,6 +408,7 @@
 
         function updateLeaderboardUI(board) {
             const list = document.getElementById('leaderboard-list');
+            if (!list) return;
             if (!board || board.length === 0) { list.innerHTML = '<p class="text-gray-400 text-sm italic">Hall is empty. Be the first!</p>'; return; }
             list.innerHTML = board.map((entry, i) => `
                 <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border-l-4 ${i < 3 ? 'border-yellow-400' : 'border-slate-200'} shadow-sm">
@@ -418,7 +427,7 @@
             grad.addColorStop(0, '#004d00'); grad.addColorStop(1, '#002b00');
             ctx.fillStyle = grad; ctx.fillRect(0, 0, 1080, 1080);
             ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 40; ctx.strokeRect(40, 40, 1000, 1000);
-            ctx.fillStyle = '#FFD700'; ctx.font = 'bold 50px Arial'; ctx.textAlign = 'center'; ctx.fillText('APRM BIG BOSS CHALLENGE', 540, 180);
+            ctx.fillStyle = '#FFD700'; ctx.font = 'bold 54px Arial'; ctx.textAlign = 'center'; ctx.fillText('APRM BIG BOSS CHALLENGE', 540, 180);
             ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 45px Arial'; ctx.fillText('ARE YOU A POLICY GENIUS?', 540, 260);
             ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'; ctx.fillRect(120, 320, 840, 520);
             ctx.fillStyle = '#FFFFFF'; ctx.font = '30px Arial'; ctx.fillText('GOVERNANCE BY:', 540, 380);
