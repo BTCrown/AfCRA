@@ -14,6 +14,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
+        // Global variables provided by environment
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "", authDomain: "", projectId: "", storageBucket: "", messagingSenderId: "", appId: ""
         };
@@ -26,6 +27,7 @@
 
         window.db = db;
         window.appId = appId;
+        window.currentUser = null;
 
         const initAuth = async () => {
             try {
@@ -38,15 +40,14 @@
             if (user) {
                 window.currentUser = user;
                 setupLeaderboardListener();
-                trackSessionStart(); // Metric: Session tracking
+                trackSessionStart(); 
             }
         });
 
         initAuth();
 
-        // 1. SESSION TRACKING (Private Data - Rule 1)
         async function trackSessionStart() {
-            if (!window.currentUser) return;
+            if (!window.db || !window.currentUser) return;
             const userRef = doc(window.db, 'artifacts', window.appId, 'users', window.currentUser.uid, 'stats', 'profile');
             try {
                 const snap = await getDoc(userRef);
@@ -55,44 +56,30 @@
                 } else {
                     await updateDoc(userRef, { totalSessions: increment(1), lastActive: new Date().toISOString() });
                 }
-            } catch (e) { console.error("Stats error", e); }
+            } catch (e) { console.error("Stats tracking error", e); }
         }
 
-        // EXTERNAL SYNC (Metric: Forwarding to Google Sheets)
         async function syncToExternalAnalytics(data) {
-            // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-            const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbzwi2i1zgsVlEXY_A2N9sszxstmDacV39TU6CVPRIy76aAiEGlBkOjPVzqMQ6osuTPcAQ/exec"; 
-            if (!GOOGLE_SHEET_URL) return;
+            const GOOGLE_SHEET_URL = ""; // PASTE YOUR URL HERE
+            if (!GOOGLE_SHEET_URL || !window.currentUser) return;
             try {
                 await fetch(GOOGLE_SHEET_URL, {
                     method: 'POST',
                     mode: 'no-cors',
-                    body: JSON.stringify({
-                        userId: window.currentUser.uid,
-                        timestamp: new Date().toISOString(),
-                        ...data
-                    })
+                    body: JSON.stringify({ userId: window.currentUser.uid, timestamp: new Date().toISOString(), ...data })
                 });
-            } catch (e) { console.error("External sync error", e); }
+            } catch (e) { console.error("Sheets sync error", e); }
         }
 
-        // 2. USAGE LOGS (Public Data for Export to Excel/Sheet - Rule 1)
         window.logUsageToCloud = async (data) => {
-            if (!window.currentUser) return;
+            if (!window.db || !window.currentUser) return;
             try {
                 const logsRef = collection(window.db, 'artifacts', window.appId, 'public', 'data', 'usage_logs');
-                await addDoc(logsRef, {
-                    userId: window.currentUser.uid,
-                    timestamp: new Date().toISOString(),
-                    ...data
-                });
-
-                // Sync to Google Sheets Webhook
+                await addDoc(logsRef, { userId: window.currentUser.uid, timestamp: new Date().toISOString(), ...data });
                 await syncToExternalAnalytics(data); 
-            } catch (e) { console.error("Logging error", e); }
+            } catch (e) { console.error("Decision logging error", e); }
         };
 
-        // GLOBAL LEADERBOARD
         function setupLeaderboardListener() {
             if (!window.db || !window.currentUser) return;
             const leaderboardRef = collection(window.db, 'artifacts', window.appId, 'public', 'data', 'leaderboard');
@@ -101,28 +88,28 @@
                 snapshot.forEach(doc => scores.push(doc.data()));
                 scores.sort((a, b) => b.score - a.score);
                 updateLeaderboardUI(scores.slice(0, 10));
-            });
+            }, (err) => console.error("Leaderboard sync error", err));
         }
 
         window.saveScoreToCloud = async (name, score, grade) => {
-            if (!window.currentUser) return;
-            const leaderboardRef = collection(window.db, 'artifacts', window.appId, 'public', 'data', 'leaderboard');
-            await addDoc(leaderboardRef, { name, score, grade, timestamp: new Date().toISOString() });
-            
-            // Increment total games finished for this user
-            const userRef = doc(window.db, 'artifacts', window.appId, 'users', window.currentUser.uid, 'stats', 'profile');
-            await updateDoc(userRef, { totalGamesFinished: increment(1) });
+            if (!window.db || !window.currentUser) return;
+            try {
+                const leaderboardRef = collection(window.db, 'artifacts', window.appId, 'public', 'data', 'leaderboard');
+                await addDoc(leaderboardRef, { name, score, grade, timestamp: new Date().toISOString() });
+                const userRef = doc(window.db, 'artifacts', window.appId, 'users', window.currentUser.uid, 'stats', 'profile');
+                await updateDoc(userRef, { totalGamesFinished: increment(1) });
+            } catch (e) { console.error("Score save error", e); }
         };
     </script>
 
     <style>
         :root { --aprm-gold: #FFD700; --aprm-green: #006400; --aprm-red: #D40000; --au-blue: #003366; }
-        body { background-color: #f1f5f9; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; }
+        body { background-color: #f1f5f9; font-family: 'Segoe UI', system-ui, sans-serif; overflow-x: hidden; }
         .bg-aprm-gradient { background: linear-gradient(135deg, var(--aprm-green) 0%, #004d00 100%); }
-        .btn-gold { background-color: var(--aprm-gold); color: var(--au-blue); font-weight: 800; transition: all 0.2s ease; }
-        .btn-gold:hover { background-color: #e6c200; transform: scale(1.02); }
+        .btn-gold { background-color: var(--aprm-gold); color: var(--au-blue); font-weight: 800; transition: all 0.2s ease; border: 2px solid transparent; }
+        .btn-gold:hover { background-color: #e6c200; transform: scale(1.02); border-color: white; }
         .sidebar { background: white; border-right: 4px solid var(--aprm-gold); }
-        .score-progress { height: 100%; transition: width 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); background: linear-gradient(to right, var(--aprm-red), var(--aprm-gold), var(--aprm-green)); }
+        .score-progress { height: 100%; transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); background: linear-gradient(to right, var(--aprm-red), var(--aprm-gold), var(--aprm-green)); }
         .insight-card { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease; }
         #flyer-canvas { display: none; }
         .shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
@@ -134,7 +121,7 @@
 
     <header class="bg-aprm-gradient text-white p-4 shadow-lg text-center border-b-4 border-yellow-400 sticky top-0 z-50">
         <h1 class="text-xl font-black tracking-tighter uppercase italic">APRM: The Big Boss Challenge</h1>
-        <p class="text-[10px] uppercase font-bold tracking-widest opacity-80">Policy Analysis & Credit Metrics Engine</p>
+        <p class="text-[10px] uppercase font-bold tracking-widest opacity-80">Building Africa's Credit Credibility</p>
     </header>
 
     <div class="flex flex-1 layout-container">
@@ -143,12 +130,12 @@
                 <i class="fas fa-crown text-yellow-500"></i> GLOBAL HALL OF FAME
             </h2>
             <div id="leaderboard-list" class="space-y-2 overflow-y-auto max-h-[400px]">
-                <p class="text-gray-400 text-sm italic">Syncing with AfCRA data...</p>
+                <p class="text-gray-400 text-sm italic">Syncing with AfCRA nodes...</p>
             </div>
             <div class="mt-auto pt-6 border-t mt-6">
                 <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
                     <p class="text-[10px] font-bold text-yellow-900 uppercase tracking-tighter">Metric Note</p>
-                    <p class="text-xs text-yellow-800 italic">Your decisions are logged for regional policy research. Be legendary.</p>
+                    <p class="text-xs text-yellow-800 italic">Global performance is monitored for continental policy evaluation. Governance is key.</p>
                 </div>
             </div>
         </aside>
@@ -161,8 +148,8 @@
                 </div>
                 <h2 class="text-2xl font-black text-gray-800 italic uppercase">So, You Think You Can Lead?</h2>
                 <div class="text-sm text-gray-600 space-y-4 text-left leading-relaxed">
-                    <p>Think you can make better choices than current leaders? Talk is cheap—it's time to step into the role of a <strong>Special Adviser to the President.</strong></p>
-                    <p>Every decision you make across the APRM thematic areas will be scrutinized by the markets. Will you build an economic powerhouse or a total default risk?</p>
+                    <p>Think you can make better choices than current leaders? It's time to step into the role of a <strong>Special Adviser to the President.</strong></p>
+                    <p>Every decision you make across the APRM thematic areas will be scrutinized. Will you build an economic powerhouse or a total default risk?</p>
                     <p>Let's see those policy-making skills in action.</p>
                 </div>
                 <button onclick="showScreen('start-screen')" class="w-full p-5 btn-gold rounded-xl shadow-lg text-lg uppercase tracking-widest active:scale-95 transition-all">
@@ -175,10 +162,10 @@
                     <i class="fas fa-bolt text-3xl text-green-800"></i>
                 </div>
                 <h2 class="text-2xl font-black text-gray-800 italic">Name Your Administration</h2>
-                <p class="text-sm text-gray-600">Enter your handle. Your performance will be logged in our global metrics engine.</p>
+                <p class="text-sm text-gray-600">Enter your handle. Your performance will be logged in our global hall of fame.</p>
                 <input type="text" id="user-name" placeholder="Enter Your Boss Handle" maxlength="15"
                        class="w-full p-4 border-2 border-gray-100 rounded-xl focus:border-green-600 outline-none text-center font-bold text-lg uppercase shadow-sm">
-                <button onclick="startGame()" class="w-full p-5 btn-gold rounded-xl shadow-lg text-lg uppercase tracking-widest hover:shadow-xl active:scale-95 transition-all">
+                <button onclick="startGame()" class="w-full p-5 btn-gold rounded-xl shadow-lg text-lg uppercase tracking-widest active:scale-95 transition-all">
                     Let's Get This Bag
                 </button>
             </div>
@@ -186,7 +173,7 @@
             <div id="quiz-screen" class="hidden w-full max-w-lg space-y-4">
                 <div class="flex justify-between items-center text-[10px] font-black text-gray-400 px-2 uppercase tracking-widest">
                     <span id="thematic-area-label" class="bg-au-blue text-white px-3 py-1 rounded-full italic">VIBE CHECK</span>
-                    <span id="question-counter" class="text-yellow-600 font-black text-xs">ROUND 1/5</span>
+                    <span id="question-counter" class="text-yellow-600 font-black text-sm">ROUND 1/5</span>
                 </div>
                 
                 <div id="game-card" class="relative bg-white rounded-2xl shadow-2xl p-8 min-h-[520px] flex flex-col justify-between border-b-8 border-green-700 overflow-hidden">
@@ -226,7 +213,7 @@
                 <div class="bg-green-50 p-4 rounded-xl"><p id="analysis-text" class="text-sm text-green-900 font-medium"></p></div>
                 <div class="pt-4 space-y-3">
                     <button onclick="generateFlyer()" class="w-full p-4 bg-green-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-800 transition shadow-lg">
-                        <i class="fas fa-fire"></i> Create My Flex Flyer
+                        <i class="fas fa-camera"></i> Create My Flex Flyer
                     </button>
                     <button onclick="startGame()" class="w-full p-4 border-2 border-gray-200 text-gray-500 rounded-xl font-bold hover:bg-gray-100 transition">
                         Wait, I Can Do Better
@@ -241,7 +228,7 @@
                     <div class="absolute top-5 right-5 text-blue-500 group-hover:scale-125 transition-transform"><i class="fas fa-copy text-3xl" id="copy-icon"></i></div>
                     <div class="flex justify-between items-center mt-2">
                         <span class="text-[10px] font-black uppercase text-gray-400 tracking-widest">The Brag Box</span>
-                        <span class="text-[9px] font-bold text-blue-500 animate-pulse uppercase">Click anywhere to copy text</span>
+                        <span id="brag-instruction" class="text-[9px] font-bold text-blue-500 animate-pulse uppercase">Click anywhere to copy text</span>
                     </div>
                 </div>
                 <div class="space-y-3">
@@ -250,7 +237,7 @@
                     </button>
                     <div class="flex gap-3">
                         <button onclick="showScreen('result-screen')" class="flex-1 p-4 bg-white rounded-xl font-bold shadow-md">Back</button>
-                        <button onclick="shareLink()" class="flex-1 p-4 btn-gold rounded-xl font-bold shadow-md"><i class="fas fa-link mr-2"></i>Copy Game Link</button>
+                        <button onclick="shareLink()" class="flex-1 p-4 btn-gold rounded-xl font-bold shadow-md"><i class="fas fa-link mr-2"></i>Copy Link</button>
                     </div>
                 </div>
             </div>
@@ -260,42 +247,31 @@
     <canvas id="flyer-canvas" width="1080" height="1080"></canvas>
 
     <script>
-        const genericSuccessTitles = ["Elite Tier 🥂", "Galaxy Brain 🧠", "Sovereign Swagger 🇿🇦", "Market Legend 📈", "AfCRA's Favorite 🥇"];
-        const genericFailTitles = ["Plot Hole 🚩", "Audit Nightmare 💀", "Market Panic 📉", "Rookie Move 🤡", "Fiscal Fumble 📉"];
+        const genericSuccessTitles = ["Elite Tier 🥂", "Galaxy Brain 🧠", "Sovereign Swagger 🇿🇦", "Market Legend 📈", "Masterstroke! 🔥"];
+        const genericFailTitles = ["Audit Nightmare 💀", "Market Panic 📉", "Rookie Move 🤡", "Fiscal Fumble 📉", "Strategic Oof... 😬"];
 
-        const baseBank = [
-            { area: "Democracy", text: "The Electoral Commission is requesting an emergency budget for biometric auditing. Do you grant them full financial autonomy through a protected treasury drawdown, or require every cent to be cleared through the President's Office for oversight?", options: [
-                { text: "Legislate the direct protected drawdown. Independence requires its own wallet.", impact: 60, successTitle: "Democracy Legend! 🗳️", insight: "Financial independence for watchdogs prevents meddling. Credibility = lower risk premiums." },
-                { text: "Require executive clearance. We need to ensure national budget alignment.", impact: -40, failTitle: "Institutional Risk 🚩", insight: "Rating agencies see executive control over EC budgets as a high political instability risk." }
+        const questionBank = [
+            { area: "Democracy", text: "The Electoral Commission is requesting an emergency budget for biometric auditing. Do you grant them full financial autonomy through a direct protected treasury drawdown, or require executive clearance for every spend to ensure efficiency?", options: [
+                { text: "Legislate a direct protected drawdown. Independence requires its own wallet.", impact: 60, successTitle: "Democracy Legend! 🗳️", insight: "Financial independence for watchdogs prevents electoral meddling. Markets value the predictability of fair outcomes." },
+                { text: "Route all spending through executive review. We need unified fiscal control for national stability.", impact: -40, failTitle: "Institutional Risk 🚩", insight: "Rating agencies view executive control over election budgets as a major political instability risk, spiking borrowing costs." }
             ]},
-            { area: "Economy", text: "With national debt climbing, you have two paths. Do you pivot to a high-transparency 'Blue Bond' for ocean conservation to swap debt with donors, or secure a private commercial loan from a foreign equity firm?", options: [
-                { text: "Launch the Green/Blue Bond swap. Let's modernize our debt profile.", impact: 60, successTitle: "Green Finance King 🌍", insight: "AfCRA rewards creative, sustainable instruments that lower interest burdens." },
-                { text: "Take the private equity loan. It's faster and avoids donor 'strings'.", impact: -50, failTitle: "Debt Trap Ahead 🪤", insight: "High-interest commercial debt with no transparency is a one-way ticket to a downgrade." }
-            ]},
-            { area: "Audit", text: "Auditors found massive gaps in the state power utility's accounts. Do you mandate a full public forensic audit and board refresh, or issue an immediate bailout to keep the lights on and fix it internally later?", options: [
-                { text: "Enforce a public forensic audit and clean house immediately.", impact: 50, successTitle: "Audit Boss! ✨", insight: "Transparency protects investor assets. Hidden leaks are a major rating killer." },
-                { text: "Issue the bailout first. We can't risk blackouts while we investigate.", impact: -30, failTitle: "Hidden Liability 🤫", insight: "Opaque bailouts are 'quiet' debts that AfCRA spotters flag as fiscal time bombs." }
+            { area: "Economy", text: "National debt is reaching critical levels. Do you pivot to a high-transparency 'Blue Bond' for ocean conservation to swap debt with donors, or secure a private commercial loan from an equity firm to avoid donor strings?", options: [
+                { text: "Launch the Green/Blue Bond swap. Let's modernize our debt profile and lower interest burdens.", impact: 60, successTitle: "Green Finance King 🌍", insight: "AfCRA rewards creative, sustainable instruments that lower national interest burdens while protecting future assets." },
+                { text: "Secure the private equity loan. It's faster and allows us to handle our own debts without interference.", impact: -50, failTitle: "Debt Trap Ahead 🪤", insight: "High-interest commercial debt with no transparency is a one-way ticket to a sovereign downgrade." }
             ]}
         ];
 
-        // Dynamic generator for 100 varied questions
-        let questionBank = [...baseBank];
-        const sectors = ["Mineral", "Justice", "Education", "Health", "Trade", "Energy"];
-        const dilemmas = [
-            { good: "digitize the sector to remove human intermediaries", bad: "increase manual oversight committees to 'watch the watchers'", insight: "Tech-driven transparency is harder to bribe than a committee. Markets prefer verifiable data." },
-            { good: "IPO a portion of state assets on the local exchange", bad: "sign a secret resource-swap with a foreign power for infrastructure", insight: "Local listings build domestic wealth. Secret swaps often hide poor terms that hurt credit ratings." },
-            { good: "approve the sector's requested budget increase for modernization", bad: "divert that budget to national security hardware instead", insight: "A functioning social/judicial system is a pillar of creditworthiness. Essential services protect stability." }
-        ];
-
-        for (let i = 0; i < 97; i++) {
+        // Seeding 98 more varied dilemmas
+        const sectors = ["Mineral", "Justice", "Education", "Health", "Trade", "Energy", "Infrastructure", "Tech"];
+        for (let i = 0; i < 98; i++) {
             const sector = sectors[i % sectors.length];
-            const d = dilemmas[i % dilemmas.length];
+            const isGoodFirst = Math.random() > 0.5;
             questionBank.push({
                 area: sector,
-                text: `CRISIS #${i+100}: The ${sector} department is facing a critical bottleneck. Do you choose to ${d.good}, or do you ${d.bad} to ensure immediate control?`,
+                text: `Policy Crisis #${i+100}: The ${sector} department is facing a decision that will define its next decade. Do you implement a decentralized system that empowers local oversight, or maintain a centralized command structure for rapid national alignment?`,
                 options: [
-                    { text: `Authorize the move to ${d.good}. Let's fix the system.`, impact: 35, insight: d.insight },
-                    { text: `Stick with the plan to ${d.bad}. We need results now.`, impact: -25, insight: "Short-term relief often masks long-term institutional decay. Rating agencies hate uncertainty." }
+                    { text: "Decentralize the oversight. We need local accountability to fix the system.", impact: 35, insight: "Devolution of power often prevents central bottlenecks and localized unrest, key stability metrics for AfCRA." },
+                    { text: "Centralize the command. In times of crisis, one strong voice is better than many weak ones.", impact: -25, insight: "Centralization often looks like stability until a shock hits. Markets prefer the resilience of open, distributed institutions." }
                 ]
             });
         }
@@ -305,10 +281,12 @@
         let score = 500;
         let userName = "";
         let isSharing = false;
-        let availableIndices = JSON.parse(localStorage.getItem('aprm_exhaustion_pool_v2') || "[]");
 
         function showScreen(id) {
-            ['welcome-screen', 'start-screen', 'quiz-screen', 'result-screen', 'share-screen'].forEach(s => document.getElementById(s).classList.add('hidden'));
+            ['welcome-screen', 'start-screen', 'quiz-screen', 'result-screen', 'share-screen'].forEach(s => {
+                const el = document.getElementById(s);
+                if (el) el.classList.add('hidden');
+            });
             document.getElementById(id).classList.remove('hidden');
         }
 
@@ -316,17 +294,21 @@
             userName = document.getElementById('user-name').value.trim() || "Anonymous Boss";
             score = 500;
             currentIdx = 0;
-            if (availableIndices.length < 5) availableIndices = Array.from({length: questionBank.length}, (_, i) => i);
+            
+            let pool = JSON.parse(localStorage.getItem('aprm_exhaustion_pool_v3') || "[]");
+            if (pool.length < 5) pool = Array.from({length: questionBank.length}, (_, i) => i);
+            
             currentSessionQuestions = [];
             for (let i = 0; i < 5; i++) {
-                const randPos = Math.floor(Math.random() * availableIndices.length);
-                currentSessionQuestions.push(questionBank[availableIndices.splice(randPos, 1)[0]]);
+                const randPos = Math.floor(Math.random() * pool.length);
+                currentSessionQuestions.push(questionBank[pool.splice(randPos, 1)[0]]);
             }
-            localStorage.setItem('aprm_exhaustion_pool_v2', JSON.stringify(availableIndices));
+            localStorage.setItem('aprm_exhaustion_pool_v3', JSON.stringify(pool));
+            
             updateScoreDisplay();
             loadQuestion();
             showScreen('quiz-screen');
-            window.logUsageToCloud({ action: "Game Started", name: userName });
+            if (window.logUsageToCloud) window.logUsageToCloud({ action: "Game Started", name: userName });
         }
 
         function loadQuestion() {
@@ -364,7 +346,7 @@
             }
             text.innerText = option.insight;
             overlay.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-full');
-            window.logUsageToCloud({ action: "Decision Made", round: currentIdx + 1, impact: option.impact });
+            if (window.logUsageToCloud) window.logUsageToCloud({ action: "Decision Made", round: currentIdx + 1, impact: option.impact });
         }
 
         function nextQuestion() {
@@ -382,25 +364,22 @@
             let grade = "C"; let analysis = ""; let brag = "";
             const gameUrl = window.location.href.split('?')[0];
             if (score >= 750) { 
-                grade = score >= 820 ? "AAA" : "AA"; 
-                analysis = "Certified G! You understood the assignment. You didn't just govern; you built a future. You are a Policy Genius.";
+                grade = score >= 820 ? "AAA" : "AA"; analysis = "Exemplary Leadership. You built an investment powerhouse. You are a Policy Genius.";
                 brag = `I just proved I'm a Policy Genius with a ${grade} rating! 🏛️ My country is thriving. Can you beat my score? ${gameUrl}`;
                 confetti({ particleCount: 150, spread: 70, origin: { y: 0.7 }, colors: ['#FFD700', '#006400', '#003366', '#FFFFFF'] });
             } else if (score >= 600) { 
-                grade = score >= 680 ? "A" : "B+"; 
-                analysis = "Safe Bet. You're doing the work, but markets are still watching. Solid moves, but not yet 'Legend' status.";
+                grade = score >= 680 ? "A" : "B+"; analysis = "Stable Hands. Markets are interested, though some risks remain. Solid but not yet legendary.";
                 brag = `I'm holding the line with an ${grade} rating. 📉 Not a total disaster, but can you do better? ${gameUrl}`;
             } else { 
-                grade = score >= 450 ? "B" : "D"; 
-                analysis = "Big Yikes. Your economy is on 'Do Not Disturb' mode because everyone is scared of your policies.";
-                brag = `Oof, governing is harder than it looks! 😅 My rating is ${grade}. Can you actually run a nation? ${gameUrl}`;
+                grade = score >= 450 ? "B" : "D"; analysis = "Alert. High political and fiscal risk detected. Time to re-examine the APRM playbook.";
+                brag = `Oof, governing is harder than it looks! 😅 My rating is ${grade}. Think you can actually run a nation? ${gameUrl}`;
             }
             document.getElementById('grade-display').innerText = grade;
             document.getElementById('final-score').innerText = score;
             document.getElementById('analysis-text').innerText = analysis;
             document.getElementById('brag-text').innerText = brag;
-            await window.saveScoreToCloud(userName, score, grade);
-            window.logUsageToCloud({ action: "Game Finished", finalScore: score, grade: grade });
+            if (window.saveScoreToCloud) await window.saveScoreToCloud(userName, score, grade);
+            if (window.logUsageToCloud) window.logUsageToCloud({ action: "Game Finished", finalScore: score, grade: grade });
             showScreen('result-screen');
         }
 
@@ -412,9 +391,11 @@
             document.execCommand('copy');
             document.body.removeChild(dummy);
             document.getElementById('copy-icon').className = "fas fa-check text-green-500";
-            const notice = document.querySelector('.animate-pulse');
-            notice.innerText = "COPIED TO CLIPBOARD!";
-            setTimeout(() => { document.getElementById('copy-icon').className = "fas fa-copy"; notice.innerText = "Click anywhere to copy text"; }, 2000);
+            document.getElementById('brag-instruction').innerText = "COPIED TO CLIPBOARD!";
+            setTimeout(() => { 
+                document.getElementById('copy-icon').className = "fas fa-copy"; 
+                document.getElementById('brag-instruction').innerText = "Click anywhere to copy text"; 
+            }, 2000);
         }
 
         function updateLeaderboardUI(board) {
@@ -432,6 +413,7 @@
             const canvas = document.getElementById('flyer-canvas');
             const ctx = canvas.getContext('2d');
             const grade = document.getElementById('grade-display').innerText;
+            ctx.clearRect(0,0,1080,1080);
             const grad = ctx.createLinearGradient(0, 0, 1080, 1080);
             grad.addColorStop(0, '#004d00'); grad.addColorStop(1, '#002b00');
             ctx.fillStyle = grad; ctx.fillRect(0, 0, 1080, 1080);
@@ -463,7 +445,7 @@
             const gameUrl = window.location.href.split('?')[0];
             if (navigator.share) {
                 isSharing = true; try { await navigator.share({ title: 'APRM Boss Challenge', text: brag, url: gameUrl }); } catch (err) {} finally { isSharing = false; }
-            } else { copyToClipboard(); alert("Brag text and results copied!"); }
+            } else { copyToClipboard(); alert("Challenge text and link copied!"); }
         }
     </script>
 </body>
