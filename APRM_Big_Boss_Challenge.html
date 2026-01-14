@@ -1,0 +1,601 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APRM Policy & Credit Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --aprm-gold: #FFD700;
+            --aprm-green: #006400;
+            --aprm-red: #D40000;
+            --au-blue: #003366;
+        }
+        body {
+            background-color: #f1f5f9;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            overflow-x: hidden;
+        }
+        .bg-aprm-gradient {
+            background: linear-gradient(135deg, var(--aprm-green) 0%, #004d00 100%);
+        }
+        .btn-gold {
+            background-color: var(--aprm-gold);
+            color: var(--au-blue);
+            font-weight: 800;
+            transition: all 0.2s ease;
+        }
+        .btn-gold:hover {
+            background-color: #e6c200;
+            transform: scale(1.02);
+        }
+        .sidebar {
+            background: white;
+            border-right: 4px solid var(--aprm-gold);
+        }
+        .score-progress {
+            height: 100%;
+            transition: width 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background: linear-gradient(to right, var(--aprm-red), var(--aprm-gold), var(--aprm-green));
+        }
+        .insight-card {
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+        }
+        #flyer-canvas { display: none; }
+        
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+
+        @media (max-width: 1024px) {
+            .layout-container { flex-direction: column; }
+            .sidebar { order: 2; border-right: none; border-top: 4px solid var(--aprm-gold); width: 100% !important; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+
+    <header class="bg-aprm-gradient text-white p-4 shadow-lg text-center border-b-4 border-yellow-400 sticky top-0 z-50">
+        <h1 class="text-xl font-black tracking-tighter uppercase italic text-shadow-sm">APRM: The Big Boss Challenge</h1>
+        <p class="text-[10px] uppercase font-bold tracking-widest opacity-80">Building Africa's Credit Credibility... One Vibe at a Time</p>
+    </header>
+
+
+    <div class="flex flex-1 layout-container">
+        <!-- LEADERBOARD SIDE PANEL -->
+        <aside class="sidebar w-full lg:w-80 p-6 flex flex-col shadow-inner">
+            <h2 class="text-xl font-black text-gray-800 mb-4 flex items-center gap-2">
+                <i class="fas fa-crown text-yellow-500"></i> THE HALL OF FAME
+            </h2>
+            <div id="leaderboard-list" class="space-y-2 overflow-y-auto max-h-[400px]">
+                <p class="text-gray-400 text-sm italic">Checking who actually knows how to run things...</p>
+            </div>
+            <div class="mt-auto pt-6 border-t mt-6">
+                <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                    <p class="text-[10px] font-bold text-yellow-900 uppercase tracking-tighter">Governance Fact Check</p>
+                    <p class="text-xs text-yellow-800 leading-tight italic">"Transparency isn't just a buzzword; it's the cheat code for lower interest rates. No cap." — AfCRA Team</p>
+                </div>
+            </div>
+        </aside>
+
+
+        <!-- MAIN GAME AREA -->
+        <main class="flex-1 flex flex-col items-center justify-center p-4 lg:p-12 relative bg-slate-50">
+            
+            <!-- START SCREEN -->
+            <div id="start-screen" class="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 text-center space-y-6 border-t-8 border-green-700">
+                <div class="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4 ring-4 ring-green-100">
+                    <i class="fas fa-bolt text-3xl text-green-800"></i>
+                </div>
+                <h2 class="text-2xl font-black text-gray-800 italic">Got Main Character Energy?</h2>
+                <p class="text-sm text-gray-600">Most people talk a big game, but can you run a whole nation without the credit rating hitting the floor? Make 5 big moves and let's see where you land on the board.</p>
+                
+                <div class="space-y-4 pt-4">
+                    <input type="text" id="user-name" placeholder="Enter Your Boss Handle" maxlength="15"
+                           class="w-full p-4 border-2 border-gray-100 rounded-xl focus:border-green-600 outline-none text-center font-bold text-lg uppercase shadow-sm">
+                    <button onclick="startGame()" class="w-full p-5 btn-gold rounded-xl shadow-lg text-lg uppercase tracking-widest hover:shadow-xl active:scale-95 transition-all">
+                        Let's Get This Bag
+                    </button>
+                </div>
+                <p class="text-[10px] text-gray-400 font-bold uppercase">Challenge the current leaders if you dare 👆</p>
+            </div>
+
+
+            <!-- QUIZ SCREEN -->
+            <div id="quiz-screen" class="hidden w-full max-w-lg space-y-4">
+                <div class="flex justify-between items-center text-[10px] font-black text-gray-400 px-2 uppercase tracking-widest">
+                    <span id="thematic-area-label" class="bg-au-blue text-white px-3 py-1 rounded-full italic">VIBE CHECK</span>
+                    <span id="question-counter" class="text-red-600 font-black text-xs bg-yellow-100 px-2 py-1 rounded">ROUND 1/5</span>
+                </div>
+                
+                <div id="game-card" class="relative bg-white rounded-2xl shadow-2xl p-8 min-h-[520px] flex flex-col justify-between border-b-8 border-green-700 overflow-hidden">
+                    
+                    <!-- INSIGHT OVERLAY -->
+                    <div id="insight-overlay" class="absolute inset-0 bg-green-900/95 z-20 p-8 flex flex-col justify-center items-center text-center opacity-0 pointer-events-none insight-card translate-y-full">
+                        <div class="bg-yellow-400 text-au-blue text-[10px] font-black px-3 py-1 rounded-full mb-4 uppercase tracking-widest">AfCRA Analyst Note</div>
+                        <h4 id="insight-title" class="text-white text-xl font-bold mb-4 italic"></h4>
+                        <p id="insight-text" class="text-green-50 text-sm leading-relaxed mb-8 px-2"></p>
+                        <button id="next-round-btn" onclick="nextQuestion()" class="px-8 py-3 btn-gold rounded-full shadow-xl uppercase font-black tracking-widest active:scale-95 transition-all">
+                            Next Round <i class="fas fa-arrow-right ml-2"></i>
+                        </button>
+                    </div>
+
+
+                    <div id="question-content">
+                        <h3 id="question-text" class="text-xl font-bold text-gray-800 mb-8 leading-snug"></h3>
+                        <div id="options-container" class="space-y-4">
+                            <!-- Options injected here -->
+                        </div>
+                    </div>
+                    
+                    <div class="mt-8 border-t pt-6">
+                        <div class="flex justify-between text-[10px] mb-2 font-black text-gray-400 uppercase tracking-tighter">
+                            <span>National Rep Meter</span>
+                            <span id="current-score-display" class="text-green-800 font-black">500</span>
+                        </div>
+                        <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
+                            <div id="score-bar" class="score-progress" style="width: 50%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- RESULT SCREEN -->
+            <div id="result-screen" class="hidden w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 text-center space-y-6 border-b-8 border-green-700">
+                <h2 class="text-2xl font-black text-gray-800 uppercase italic">The Verdict is In!</h2>
+                
+                <div class="py-6 bg-slate-50 rounded-2xl border-2 border-gray-100 relative">
+                    <div id="grade-display" class="text-8xl font-black text-green-700 leading-none drop-shadow-md">A+</div>
+                    <div class="text-gray-400 font-bold uppercase tracking-widest text-[10px] mt-4">Official Credit Flex</div>
+                    <div id="final-score" class="text-2xl font-bold text-gray-800 mt-1">720</div>
+                </div>
+
+
+                <div class="bg-green-50 p-4 rounded-xl">
+                    <p id="analysis-text" class="text-sm text-green-900 font-medium"></p>
+                </div>
+
+
+                <div class="pt-4 space-y-3">
+                    <button onclick="generateFlyer()" class="w-full p-4 bg-green-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-800 transition shadow-lg">
+                        <i class="fas fa-fire"></i> Create My Flex Flyer
+                    </button>
+                    <button onclick="startGame()" class="w-full p-4 border-2 border-gray-200 text-gray-500 rounded-xl font-bold hover:bg-gray-100 transition">
+                        Wait, I Can Do Better
+                    </button>
+                </div>
+                
+                <p class="text-[9px] text-gray-400 uppercase font-black tracking-widest">A project by APRM & AfCRA — Serious Governance, No boring vibes.</p>
+            </div>
+
+
+            <!-- SHARE SCREEN -->
+            <div id="share-screen" class="hidden w-full max-md text-center space-y-6">
+                <div id="flyer-preview" class="rounded-2xl overflow-hidden shadow-2xl bg-white ring-8 ring-white/50"></div>
+                
+                <div id="brag-box-parent" onclick="copyToClipboard()" class="bg-white p-5 rounded-xl border-2 border-dashed border-gray-200 text-left relative cursor-pointer hover:border-blue-400 transition-colors group">
+                    <p id="brag-text" class="text-sm text-gray-600 italic mb-2 leading-relaxed pr-12"></p>
+                    <div class="absolute top-5 right-5 text-blue-500 group-hover:scale-125 transition-transform">
+                        <i class="fas fa-copy text-3xl" id="copy-icon"></i>
+                    </div>
+                    <div class="flex justify-between items-center mt-2">
+                        <span class="text-[10px] font-black uppercase text-gray-400 tracking-widest">The Brag Box</span>
+                        <span class="text-[9px] font-bold text-blue-500 animate-pulse uppercase">Click anywhere to copy text</span>
+                    </div>
+                </div>
+
+
+                <div class="space-y-3">
+                    <button onclick="downloadFlyer()" class="w-full p-5 bg-blue-600 text-white rounded-xl font-black uppercase tracking-widest shadow-xl hover:bg-blue-700 active:scale-95 transition-all">
+                        <i class="fas fa-download mr-2"></i> Download My Flyer
+                    </button>
+                    <div class="flex gap-3">
+                        <button onclick="showScreen('result-screen')" class="flex-1 p-4 bg-white rounded-xl font-bold shadow-md">Back</button>
+                        <button onclick="shareLink()" class="flex-1 p-4 btn-gold rounded-xl font-bold shadow-md">
+                            <i class="fas fa-link mr-2"></i>Copy Game Link
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+
+        </main>
+    </div>
+
+
+    <canvas id="flyer-canvas" width="1080" height="1080"></canvas>
+
+
+    <script>
+        const genericSuccessTitles = ["Elite Tier 🥂", "Galaxy Brain 🧠", "Sovereign Swagger 🇿🇦", "Market Legend 📈", "AfCRA's Favorite 🥇", "Masterful Move! 🔥"];
+        const genericFailTitles = ["Plot Hole 🚩", "Audit Nightmare 💀", "Market Panic 📉", "Rookie Move 🤡", "Fiscal Fumble 📉", "Strategic Risk... 😬"];
+
+
+        const questionBank = [
+            { 
+                area: "Democracy", 
+                text: "An independent oversight body has requested a dedicated, protected budget directly from the treasury to prevent political interference during an election year. Do you legislate this autonomy or maintain executive approval power over their spending to ensure 'fiscal efficiency'?", 
+                options: [
+                    { text: "Legislate a direct, protected treasury drawdown. Institutional autonomy requires independent financial control.", impact: 60, successTitle: "Democracy Legend! 🗳️", insight: "Financial independence for watchdogs prevents electoral meddling. AfCRA knows credibility equals lower risk premiums. Markets hate contested results." },
+                    { text: "Maintain executive budget oversight. Centralized control ensures we maintain a unified fiscal front during sensitive times.", impact: -40, failTitle: "Institutional Risk 🚩", insight: "Keeping watchdogs on a leash looks like a power grab to rating agencies. It signals high political instability risk which spikes your borrowing costs." }
+                ]
+            },
+            { 
+                area: "Economy", 
+                text: "National debt is approaching critical levels. Do you pivot to a high-transparency 'Debt-for-Nature' swap involving Blue Bonds to lower the burden through conservation, or secure a large, opaque commercial loan to maintain full policy independence from international donors?", 
+                options: [
+                    { text: "Engage in the Debt-for-Nature swap via Blue Bonds. Let's modernize the debt profile through sustainability.", impact: 60, successTitle: "Green Finance King 🌍", insight: "Sustainable finance is the future. AfCRA rewards leaders who use creative instruments to lower interest burdens while protecting national assets." },
+                    { text: "Secure the private commercial loan. Better to handle our own debts without external strings attached to our resources.", impact: -50, failTitle: "Debt Trap Ahead 🪤", insight: "High-interest commercial debt with no transparency is a one-way ticket to a downgrade. AfCRA prefers sustainable fiscal management over expensive quick cash." }
+            ]},
+            { 
+                area: "Audit & Tech", 
+                text: "Internal audits reveal significant financial discrepancies within the state utility. Do you mandate a full public forensic audit and replace the executive board, or issue an immediate bailout to stabilize the grid while conducting a discreet internal investigation?", 
+                options: [
+                    { text: "Enforce a full public forensic audit and replace the board. Transparency must come before stabilization.", impact: 50, successTitle: "Transparency Boss! ✨", insight: "Transparency is the ultimate flex. AfCRA values leaders who expose corruption because it protects investor assets in the long run. No more hidden leaks." },
+                    { text: "Issue the bailout first to prevent blackouts. We can hunt for the internal culprits once the energy supply is secure.", impact: -30, failTitle: "Hidden Liability 🤫", insight: "Opaque bailouts are a rating killer. AfCRA is designed to spot these 'quiet' debts that standard agencies miss. Unrecorded debt is a fiscal time bomb." }
+            ]},
+            { 
+                area: "Socio-Economic", 
+                text: "Climate change is significantly reducing harvests in the agricultural heartland. Do you distribute chemical fertilizers to secure the next harvest immediately, or launch community solar-powered drip irrigation for long-term water security?", 
+                options: [
+                    { text: "Fund community solar drip irrigation. We need a structural fix for our long-term water and food resilience.", impact: 40, successTitle: "Agri-Tech Hero 🌾", insight: "Sustainable water management is a long-term win against climate change. AfCRA values environmental and social resilience in its unique scoring system." },
+                    { text: "Subsidize chemical fertilizer distribution. The immediate priority is preventing food shortages and price hikes this season.", impact: -20, failTitle: "Structural Gap 🧪", insight: "Subsidies are expensive and don't fix the underlying water issues. AfCRA sees this as a short-term patch for a structural crisis. High cost, low ROI." }
+            ]},
+            { 
+                area: "Democracy", 
+                text: "A whistleblowing portal has leaked proof of opacity in a major state energy contract. Do you grant the sources full legal immunity and launch a public probe, or open an investigation into the leak sources to protect confidential state data?", 
+                options: [
+                    { text: "Grant full immunity to the whistleblowers. We need to verify the integrity of our contracts.", impact: 50, successTitle: "Justice Seeker ⚖️", insight: "Protecting whistleblowers signals that corruption won't be tolerated. AfCRA knows institutional integrity equals a lower risk of sudden capital flight." },
+                    { text: "Investigate the leak sources. Protecting confidential state data is a matter of national security.", impact: -60, failTitle: "Transparency Alert 🚔", insight: "Criminalizing leaks creates an environment of opacity. Investors hate not knowing what's actually happening in the state's books. Uncertainty leads to downgrades." }
+            ]}
+        ];
+
+
+        // Seed 95 varied questions
+        const generators = [
+            { a: "Economic", q: "The Central Bank wants to raise interest rates to curb inflation. Do you protect their independence to do so, or suggest they hold rates to keep consumer spending high?", g: "Publicly back the Central Bank's move to maintain monetary stability.", b: "Coordinate with the bank to keep rates low and protect consumer demand.", i: "Bank independence is a massive credit signal. Interference usually leads to currency collapse." },
+            { a: "Audit", q: "Procurement records for infrastructure projects are currently prone to error. Do you transition to a public blockchain-based portal for all government tenders, or hire a 3rd party manual auditing firm to review the existing process?", g: "Implement the blockchain procurement system for immutable record keeping.", b: "Hire a global 3rd party auditing firm to review manual processes.", i: "Tech-driven transparency is harder to bribe than a committee. Markets prefer immutable data over manual oversight." },
+            { a: "Democracy", q: "Judicial staff are threatening a strike over funding. Do you approve their requested budget increase through a tax adjustment, or allocate those funds to a new military security initiative?", g: "Approve the full judicial budget increase to ensure legal system continuity.", b: "Reallocate the proposed funds to national security and hardware acquisition.", i: "A functioning, well-funded judiciary is a primary pillar of creditworthiness. Investors need to know contracts can be enforced." },
+            { a: "Growth", q: "Urban informal settlements are expanding rapidly. Do you invest in property titling and communal services for residents, or focus on clearing land for a new high-end financial district?", g: "Provide property titling and communal services to formalize the local economy.", b: "Prioritize clearing land to attract foreign banks to the financial district.", i: "Formalizing property titles unlocks massive domestic capital. AfCRA rewards inclusive development because it prevents future social unrest." }
+        ];
+
+
+        for (let i = 1; i <= 95; i++) {
+            const temp = generators[Math.floor(Math.random() * generators.length)];
+            questionBank.push({
+                area: temp.a,
+                text: `Governance Challenge #${i+100}: ${temp.q}`,
+                options: [
+                    { text: temp.g, impact: 35 + (i % 15), insight: temp.i },
+                    { text: temp.b, impact: -25 - (i % 10), insight: "This path might provide short-term political relief, but it increases the risk of institutional decay. Rating agencies prioritize long-term predictability." }
+                ]
+            });
+        }
+
+
+        let currentSessionQuestions = [];
+        let currentIdx = 0;
+        let score = 500;
+        let userName = "";
+        let isSharing = false;
+
+
+        window.onload = () => {
+            updateLeaderboardUI();
+        };
+
+
+        function showScreen(id) {
+            ['start-screen', 'quiz-screen', 'result-screen', 'share-screen'].forEach(s => document.getElementById(s).classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+
+        function startGame() {
+            const input = document.getElementById('user-name');
+            userName = input.value.trim() || "Anonymous Boss";
+            score = 500;
+            currentIdx = 0;
+            currentSessionQuestions = [...questionBank].sort(() => 0.5 - Math.random()).slice(0, 5);
+            updateScoreDisplay();
+            loadQuestion();
+            showScreen('quiz-screen');
+        }
+
+
+        function loadQuestion() {
+            const overlay = document.getElementById('insight-overlay');
+            overlay.classList.add('opacity-0', 'pointer-events-none', 'translate-y-full');
+            
+            const q = currentSessionQuestions[currentIdx];
+            document.getElementById('thematic-area-label').innerText = q.area;
+            document.getElementById('question-counter').innerText = `ROUND ${currentIdx + 1}/5`;
+            document.getElementById('question-text').innerText = q.text;
+            
+            const container = document.getElementById('options-container');
+            container.innerHTML = "";
+            const randomizedOptions = [...q.options].sort(() => Math.random() - 0.5);
+            
+            randomizedOptions.forEach(opt => {
+                const b = document.createElement('button');
+                b.className = "w-full p-5 text-left border-2 border-gray-100 rounded-xl hover:border-green-600 hover:bg-green-50 transition font-bold text-gray-700 flex justify-between items-center group shadow-sm";
+                b.innerHTML = `<span>${opt.text}</span> <i class="fas fa-hand-point-right opacity-0 group-hover:opacity-100 text-green-600 transition"></i>`;
+                b.onclick = () => handleAnswer(opt);
+                container.appendChild(b);
+            });
+
+
+            const nextBtn = document.getElementById('next-round-btn');
+            if (currentIdx === 4) {
+                nextBtn.innerHTML = `GET THE VERDICT <i class="fas fa-gavel ml-2 text-yellow-500"></i>`;
+            } else {
+                nextBtn.innerHTML = `Next Round <i class="fas fa-arrow-right ml-2"></i>`;
+            }
+        }
+
+
+        function handleAnswer(option) {
+            score = Math.max(300, Math.min(850, score + option.impact));
+            updateScoreDisplay();
+            
+            const overlay = document.getElementById('insight-overlay');
+            const title = document.getElementById('insight-title');
+            const text = document.getElementById('insight-text');
+            const gameCard = document.getElementById('game-card');
+            
+            if (option.impact > 0) {
+                const specific = option.successTitle || "";
+                title.innerText = specific || genericSuccessTitles[Math.floor(Math.random() * genericSuccessTitles.length)];
+            } else {
+                const specific = option.failTitle || "";
+                title.innerText = specific || genericFailTitles[Math.floor(Math.random() * genericFailTitles.length)];
+                gameCard.classList.add('shake');
+                setTimeout(() => gameCard.classList.remove('shake'), 500);
+            }
+            
+            text.innerText = option.insight;
+            overlay.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-full');
+        }
+
+
+        function nextQuestion() {
+            currentIdx++;
+            if (currentIdx < 5) {
+                loadQuestion();
+            } else {
+                finishGame();
+            }
+        }
+
+
+        function updateScoreDisplay() {
+            document.getElementById('current-score-display').innerText = score;
+            const pct = ((score - 300) / (850 - 300)) * 100;
+            document.getElementById('score-bar').style.width = pct + "%";
+        }
+
+
+        function finishGame() {
+            let grade = "C";
+            let analysis = "";
+            let brag = "";
+            const gameUrl = window.location.href.split('?')[0];
+
+
+            if (score >= 750) { 
+                grade = score >= 820 ? "AAA" : "AA"; 
+                analysis = "Certified G! You understood the assignment. You didn't just govern; you built a whole future. You are a Policy Genius.";
+                brag = `I just proved I'm a Policy Genius with a ${grade} rating! 🏛️ My country is thriving. Can you beat my score or will your economy collapse? Try to run the country: ${gameUrl}`;
+                triggerConfetti();
+            } else if (score >= 600) { 
+                grade = score >= 680 ? "A" : "B+"; 
+                analysis = "Safe Bet. You're doing the work, but markets are still watching. Solid moves, but you haven't quite reached 'Legend' status yet.";
+                brag = `I'm holding the line with an ${grade} rating. 📉 Not a total disaster, but can you do better? Play the APRM Big Boss Challenge: ${gameUrl}`;
+                triggerConfetti();
+            } else { 
+                grade = score >= 450 ? "B" : "D"; 
+                analysis = "Big Yikes. Your economy is on 'Do Not Disturb' mode because everyone is scared of your policies. National Chaos Coordinator energy.";
+                brag = `Oof, governing is harder than it looks! 😅 My rating is ${grade} and the markets are panicking. Think you can actually run a nation? Prove it here: ${gameUrl}`;
+            }
+
+
+            document.getElementById('grade-display').innerText = grade;
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('analysis-text').innerText = analysis;
+            document.getElementById('brag-text').innerText = brag;
+            saveToLeaderboard(userName, score, grade);
+            showScreen('result-screen');
+        }
+
+
+        function triggerConfetti() {
+            const count = 200;
+            const defaults = { origin: { y: 0.7 }, colors: ['#FFD700', '#006400', '#003366', '#FFFFFF'] };
+            confetti({ ...defaults, particleCount: 150, spread: 70 });
+        }
+
+
+        function copyToClipboard() {
+            const text = document.getElementById('brag-text').innerText;
+            const dummy = document.createElement('textarea');
+            document.body.appendChild(dummy);
+            dummy.value = text;
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+            
+            const icon = document.getElementById('copy-icon');
+            icon.className = "fas fa-check text-green-500";
+            const notice = document.querySelector('.animate-pulse');
+            notice.innerText = "COPIED TO CLIPBOARD!";
+            
+            setTimeout(() => {
+                icon.className = "fas fa-copy";
+                notice.innerText = "Click anywhere to copy text";
+            }, 2000);
+        }
+
+
+        function saveToLeaderboard(name, score, grade) {
+            let board = JSON.parse(localStorage.getItem('aprm_board_v400') || "[]");
+            board.push({ name, score, grade });
+            board.sort((a, b) => b.score - a.score);
+            board = board.slice(0, 10);
+            localStorage.setItem('aprm_board_v400', JSON.stringify(board));
+            updateLeaderboardUI();
+        }
+
+
+        function updateLeaderboardUI() {
+            const list = document.getElementById('leaderboard-list');
+            const board = JSON.parse(localStorage.getItem('aprm_board_v400') || "[]");
+            if (board.length === 0) {
+                list.innerHTML = '<p class="text-gray-400 text-sm italic">The Hall is empty. Who wants to be the first Boss?</p>';
+                return;
+            }
+            list.innerHTML = board.map((entry, i) => `
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border-l-4 ${i < 3 ? 'border-yellow-400' : 'border-slate-200'} shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <span class="font-black text-gray-300 w-4">${i+1}</span>
+                        <div><p class="font-bold text-sm text-gray-800 leading-none">${entry.name}</p><p class="text-[9px] text-gray-400 font-black uppercase mt-1 tracking-tighter">${entry.grade} RATING</p></div>
+                    </div>
+                    <div class="text-right"><p class="font-black text-green-700">${entry.score}</p></div>
+                </div>
+            `).join('');
+        }
+
+
+        function generateFlyer() {
+            const canvas = document.getElementById('flyer-canvas');
+            const ctx = canvas.getContext('2d');
+            const grade = document.getElementById('grade-display').innerText;
+
+
+            // DRAW CLASSIC GREEN AND GOLD THEME
+            const grad = ctx.createLinearGradient(0, 0, 1080, 1080);
+            grad.addColorStop(0, '#004d00'); // Deep Green
+            grad.addColorStop(1, '#002b00'); // Darker Green
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 1080, 1080);
+
+
+            // Gold Border
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 40;
+            ctx.strokeRect(40, 40, 1000, 1000);
+
+
+            // Inner Accent Border
+            ctx.strokeStyle = 'rgba(255, 215, 0, 0.4)';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(80, 80, 920, 920);
+
+
+            // Header Title (Reduced size to avoid overflow)
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 58px Arial'; 
+            ctx.textAlign = 'center';
+            ctx.fillText('APRM BIG BOSS CHALLENGE', 540, 180);
+
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 45px Arial';
+            ctx.fillText('ARE YOU A POLICY GENIUS?', 540, 260);
+
+
+            // Divider
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(440, 300, 200, 8);
+
+
+            // Governance Badge Section
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.fillRect(150, 350, 780, 480);
+
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '30px Arial';
+            ctx.fillText('GOVERNANCE BY:', 540, 410);
+            
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 85px Arial';
+            ctx.fillText(userName.toUpperCase(), 540, 500);
+
+
+            // Grade Display
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 320px Arial';
+            ctx.shadowColor = "rgba(0,0,0,0.5)";
+            ctx.shadowBlur = 20;
+            ctx.fillText(grade, 540, 780);
+            ctx.shadowBlur = 0;
+
+
+            // Score Badge
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 65px Arial';
+            ctx.fillText(`CREDIT SCORE: ${score}`, 540, 880);
+
+
+            // CTA Text
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'italic 38px Arial';
+            ctx.fillText('Can you run a sector or an entire country?', 540, 960);
+            
+            ctx.font = 'bold 42px Arial';
+            ctx.fillStyle = '#FFD700';
+            ctx.fillText('PLAY TO FIND OUT: APRM-CHALLENGE.AFRICA', 540, 1020);
+
+
+            const dataUrl = canvas.toDataURL('image/png');
+            const preview = document.getElementById('flyer-preview');
+            preview.innerHTML = `<img src="${dataUrl}" class="w-full h-auto rounded-xl shadow-2xl border-4 border-white">`;
+            showScreen('share-screen');
+        }
+
+
+        function downloadFlyer() {
+            const canvas = document.getElementById('flyer-canvas');
+            const link = document.createElement('a');
+            link.download = `APRM-BigBoss-${userName}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+        }
+
+
+        async function shareLink() {
+            if (isSharing) return;
+            const brag = document.getElementById('brag-text').innerText;
+            const gameUrl = window.location.href.split('?')[0];
+            
+            if (navigator.share) {
+                isSharing = true;
+                try { 
+                    await navigator.share({ 
+                        title: 'APRM Boss Challenge', 
+                        text: brag,
+                        url: gameUrl
+                    }); 
+                } catch (err) {} finally { isSharing = false; }
+            } else { 
+                copyToClipboard();
+                alert("Game link and results copied to clipboard!"); 
+            }
+        }
+    </script>
+</body>
+</html>
