@@ -264,9 +264,9 @@
             ]}
         ];
 
-        // Seed 95 varied and complex questions
+        // Seed more varied questions to reach the 100 mark
         const generators = [
-            { a: "Economic", q: "Inflation is surging as the global market shifts. Do you protect the Central Bank's independence to raise rates sharply, or coordinate a rate freeze to keep the middle class spending?", g: "Back the Central Bank's move to hike rates.", b: "Coordinate with the bank to keep rates artificially low.", i: "Bank independence is a massive credit signal. Interference usually leads to currency collapse and hyperinflation." },
+            { a: "Economic", q: "The Central Bank wants to raise interest rates to curb inflation. Do you protect their independence to do so, or suggest they hold rates to keep consumer spending high?", g: "Back the Central Bank's move to hike rates.", b: "Coordinate with the bank to keep rates artificially low.", i: "Bank independence is a massive credit signal. Interference usually leads to currency collapse and hyperinflation." },
             { a: "Audit", q: "Procurement records for the new rail project are messy. Do you transition to a public blockchain-based portal for all government tenders, or hire a 3rd party manual auditing firm?", g: "Implement the public blockchain procurement system.", b: "Hire a global 3rd party auditing firm to review paper records.", i: "Tech-driven transparency is harder to bribe than a committee. Markets prefer immutable, verifiable data." },
             { a: "Democracy", q: "The judiciary is underfunded and backlogged. Do you approve their requested budget increase via a new luxury tax, or allocate those funds to a new military security initiative to fight border crime?", g: "Approve the judicial budget increase via the luxury tax.", b: "Prioritize the re-allocation to national security hardware.", i: "A functioning, well-funded judiciary is a primary pillar of creditworthiness. Investors need to know that contracts can actually be enforced." },
             { a: "Growth", q: "A foreign tech giant wants to build a hub but requires a 15-year tax holiday. Do you sign the deal for the immediate jobs, or demand a sliding-scale tax that funds local STEM education?", g: "Demand the sliding-scale tax to fund domestic STEM education.", b: "Sign the 15-year tax holiday to secure the FDI 'win'.", i: "Short-term FDI 'wins' that erode the tax base can lead to fiscal deficits. AfCRA looks for deals that build long-term domestic human capital." }
@@ -290,6 +290,9 @@
         let userName = "";
         let isSharing = false;
 
+        // TRACKING AVAILABLE QUESTIONS
+        let availableQuestionIndices = JSON.parse(localStorage.getItem('aprm_available_indices') || "[]");
+
         window.onload = () => {
             updateLeaderboardUI();
         };
@@ -304,7 +307,23 @@
             userName = input.value.trim() || "Anonymous Boss";
             score = 500;
             currentIdx = 0;
-            currentSessionQuestions = [...questionBank].sort(() => 0.5 - Math.random()).slice(0, 5);
+
+            // REFRESH POOL IF EMPTY OR NOT INITIALIZED
+            if (availableQuestionIndices.length < 5) {
+                availableQuestionIndices = Array.from({length: questionBank.length}, (_, i) => i);
+            }
+
+            // PICK 5 UNIQUE QUESTIONS
+            currentSessionQuestions = [];
+            for (let i = 0; i < 5; i++) {
+                const randPos = Math.floor(Math.random() * availableQuestionIndices.length);
+                const questionIdx = availableQuestionIndices.splice(randPos, 1)[0];
+                currentSessionQuestions.push(questionBank[questionIdx]);
+            }
+
+            // SAVE REMAINING POOL
+            localStorage.setItem('aprm_available_indices', JSON.stringify(availableQuestionIndices));
+
             updateScoreDisplay();
             loadQuestion();
             showScreen('quiz-screen');
@@ -465,71 +484,61 @@
             const ctx = canvas.getContext('2d');
             const grade = document.getElementById('grade-display').innerText;
 
-            const bgImg = new Image();
-            bgImg.src = 'https://images.unsplash.com/photo-1596464716127-f2a82984de30?auto=format&fit=crop&q=80&w=1080';
-            bgImg.crossOrigin = "anonymous";
+            // GREEN GRADIENT BACKGROUND
+            const grad = ctx.createLinearGradient(0, 0, 1080, 1080);
+            grad.addColorStop(0, '#004d00'); // Deep green
+            grad.addColorStop(1, '#002b00');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 1080, 1080);
+
+            // GOLD BORDER
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 40;
+            ctx.strokeRect(40, 40, 1000, 1000);
+
+            // HEADER - OPTIMIZED SIZE
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 60px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('APRM BIG BOSS CHALLENGE', 540, 180);
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 45px Arial';
+            ctx.fillText('ARE YOU A POLICY GENIUS?', 540, 260);
+
+            // CONTENT BOX
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.fillRect(120, 320, 840, 520);
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '30px Arial';
+            ctx.fillText('GOVERNANCE BY:', 540, 380);
             
-            bgImg.onload = function() {
-                ctx.save();
-                ctx.filter = 'blur(6px) brightness(0.4)';
-                ctx.drawImage(bgImg, 0, 0, 1080, 1080);
-                ctx.restore();
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 80px Arial';
+            ctx.fillText(userName.toUpperCase(), 540, 480);
 
-                // LIGHTER GREEN OVERLAY
-                ctx.fillStyle = 'rgba(0, 40, 0, 0.25)'; // Reduced opacity green
-                ctx.fillRect(0, 0, 1080, 1080);
+            // GRADE
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 300px Arial';
+            ctx.fillText(grade, 540, 780);
 
-                ctx.strokeStyle = '#FFD700';
-                ctx.lineWidth = 40;
-                ctx.strokeRect(40, 40, 1000, 1000);
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 60px Arial';
+            ctx.fillText(`CREDIT SCORE: ${score}`, 540, 880);
 
-                // HEADER - REDUCED SIZE TO PREVENT OVERFLOW
-                ctx.fillStyle = '#FFD700';
-                ctx.font = 'bold 60px Arial'; // Further reduced
-                ctx.textAlign = 'center';
-                ctx.fillText('APRM BIG BOSS CHALLENGE', 540, 180);
+            // CALL TO ACTION
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'italic 36px Arial';
+            ctx.fillText('Can you run a sector or an entire country?', 540, 960);
+            ctx.font = 'bold 40px Arial';
+            ctx.fillStyle = '#FFD700';
+            ctx.fillText('PLAY TO FIND OUT: APRM-CHALLENGE.AFRICA', 540, 1020);
 
-                ctx.fillStyle = '#FFFFFF';
-                ctx.font = 'bold 45px Arial';
-                ctx.fillText('ARE YOU A POLICY GENIUS?', 540, 260);
-
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-                ctx.fillRect(120, 320, 840, 520);
-
-                ctx.fillStyle = '#FFFFFF';
-                ctx.font = '30px Arial';
-                ctx.fillText('GOVERNANCE BY:', 540, 380);
-                
-                ctx.fillStyle = '#FFD700';
-                ctx.font = 'bold 80px Arial';
-                ctx.fillText(userName.toUpperCase(), 540, 480);
-
-                ctx.fillStyle = '#FFFFFF';
-                ctx.font = 'bold 300px Arial';
-                ctx.fillText(grade, 540, 780);
-
-                ctx.fillStyle = '#FFD700';
-                ctx.font = 'bold 60px Arial';
-                ctx.fillText(`CREDIT SCORE: ${score}`, 540, 880);
-
-                ctx.fillStyle = '#FFFFFF';
-                ctx.font = 'italic 36px Arial';
-                ctx.fillText('Can you run a sector or an entire country?', 540, 960);
-                ctx.font = 'bold 40px Arial';
-                ctx.fillStyle = '#FFD700';
-                ctx.fillText('PLAY TO FIND OUT: APRM-CHALLENGE.AFRICA', 540, 1020);
-
-                const dataUrl = canvas.toDataURL('image/png');
-                const preview = document.getElementById('flyer-preview');
-                preview.innerHTML = `<img src="${dataUrl}" class="w-full h-auto rounded-xl shadow-2xl">`;
-                showScreen('share-screen');
-            };
-            
-            bgImg.onerror = function() {
-                ctx.fillStyle = '#003300';
-                ctx.fillRect(0, 0, 1080, 1080);
-                bgImg.onload();
-            };
+            const dataUrl = canvas.toDataURL('image/png');
+            const preview = document.getElementById('flyer-preview');
+            preview.innerHTML = `<img src="${dataUrl}" class="w-full h-auto rounded-xl shadow-2xl">`;
+            showScreen('share-screen');
         }
 
         function downloadFlyer() {
